@@ -51,7 +51,7 @@ coords = st.text_input("Enter your coordinates (latitude,longitude):")
 # Allow the user to change the search radius and category of the restaurant
 radius = st.slider("Select search radius (meters):", min_value=1000, max_value=10000, value=5000, step=500)
 category = st.selectbox("Select restaurant category:", 
-                        ["catering.restaurant", "catering.fast_food", "catering.cafe", "catering.bar"])
+                        ["Restaurant", "Fast_food", "Cafe", "Bar"])
 
 if coords:
     lat, lon = map(float, coords.split(","))
