@@ -54,7 +54,7 @@ if coords:
     
     # Use Geoapify Places API to fetch restaurant recommendations
     def get_restaurant_recommendations(lat, lon):
-        url = f"https://api.geoapify.com/v2/places?categories=catering.restaurant&filter=circle:{lon},{lat},5000&limit=10&apiKey={GEOAPIFY_API_KEY}"
+        url = f"https://api.geoapify.com/v2/places?categories=catering&filter=circle:{lon},{lat},5000&limit=10&apiKey={GEOAPIFY_API_KEY}"
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
