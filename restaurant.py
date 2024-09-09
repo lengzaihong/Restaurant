@@ -48,13 +48,18 @@ st.markdown(get_geolocation(), unsafe_allow_html=True)
 # Input for the user to copy the geolocation data (or you can handle it via JavaScript events)
 coords = st.text_input("Enter your coordinates (latitude,longitude):")
 
+# Allow the user to change the search radius and category of the restaurant
+radius = st.slider("Select search radius (meters):", min_value=1000, max_value=10000, value=5000, step=500)
+category = st.selectbox("Select restaurant category:", 
+                        ["catering.restaurant", "catering.fast_food", "catering.cafe", "catering.bar"])
+
 if coords:
     lat, lon = map(float, coords.split(","))
     st.write(f"Detected Location: (Latitude: {lat}, Longitude: {lon})")
     
     # Use Geoapify Places API to fetch restaurant recommendations
-    def get_restaurant_recommendations(lat, lon):
-        url = f"https://api.geoapify.com/v2/places?categories=catering&filter=circle:{lon},{lat},5000&limit=10&apiKey={GEOAPIFY_API_KEY}"
+    def get_restaurant_recommendations(lat, lon, radius, category):
+        url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=10&apiKey={GEOAPIFY_API_KEY}"
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
@@ -74,7 +79,7 @@ if coords:
 
     # Get restaurant recommendations based on the exact location
     st.header("Nearby Restaurant Recommendations:")
-    restaurants = get_restaurant_recommendations(lat, lon)
+    restaurants = get_restaurant_recommendations(lat, lon, radius, category)
 
     if restaurants:
         for restaurant in restaurants:
