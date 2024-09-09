@@ -11,11 +11,18 @@ def get_user_location():
     headers = CaseInsensitiveDict()
     headers["Accept"] = "application/json"
     response = requests.get(url, headers=headers)
+    
     if response.status_code == 200:
         data = response.json()
-        lat = data["location"]["latitude"]
-        lon = data["location"]["longitude"]
-        city = data["location"]["city"]["name"]
+        
+        # Debugging: Print the full response to see what the structure looks like
+        st.write("Location data response:", data)
+        
+        # Safely access latitude, longitude, and city name
+        lat = data.get("location", {}).get("latitude")
+        lon = data.get("location", {}).get("longitude")
+        city = data.get("location", {}).get("city", {}).get("name", "Unknown city")
+        
         return lat, lon, city
     else:
         st.error("Failed to retrieve location data.")
@@ -31,8 +38,8 @@ def get_restaurant_recommendations(lat, lon):
         restaurants = data["features"]
         restaurant_list = [
             {
-                "name": place["properties"]["name"],
-                "address": place["properties"]["formatted"],
+                "name": place["properties"].get("name", "Unknown name"),
+                "address": place["properties"].get("formatted", "No address available"),
                 "category": place["properties"]["categories"][0]
             }
             for place in restaurants
@@ -66,5 +73,3 @@ if lat and lon:
         st.write("No restaurants found nearby.")
 else:
     st.write("Could not detect location.")
-
-# To run the app, save this file and run `streamlit run <filename>.py` in the terminal.
