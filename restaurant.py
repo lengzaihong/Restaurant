@@ -93,11 +93,14 @@ if coords:
             
             if not restaurant_reviews.empty:
                 st.write("**Reviews:**")
-                for _, review_row in restaurant_reviews.iterrows():
+                for i, review_row in restaurant_reviews.iterrows():
+                    if i >= 10:  # Limit to 10
+                        break
                     st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
+                st.write("---")
             else:
                 st.write("No reviews found.")
-            st.write("---")
+                st.write("---")
     else:
         st.write("No restaurants found nearby.")
 else:
