@@ -11,8 +11,8 @@ def download_data_from_drive():
     url = 'https://drive.google.com/uc?id=1Tc3Hequ5jVjamAfuPhpBv8JvsOp7LSJY'
     output = 'restaurant_reviews.csv'
     
-    # Download the file
-    gdown.download(url, output, quiet=False)
+    # Download the file without printing progress (quiet=True)
+    gdown.download(url, output, quiet=True)
     
     # Load the dataset
     return pd.read_csv(output)
