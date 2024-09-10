@@ -2,3 +2,4 @@ streamlit
 requests
 pandas
 gdown
+streamlit_geolocation
