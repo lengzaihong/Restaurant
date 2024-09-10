@@ -3,6 +3,7 @@ import requests
 from requests.structures import CaseInsensitiveDict
 import pandas as pd
 import gdown
+from streamlit_geolocation import streamlit_geolocation
 
 # Function to download the CSV from Google Drive
 @st.cache
@@ -41,6 +42,8 @@ def get_geolocation():
 
 # Display JavaScript code in Streamlit
 st.title("Restaurant Recommendation System")
+location = streamlit_geolocation()
+st.write(location)
 
 # Show geolocation script
 st.markdown(get_geolocation(), unsafe_allow_html=True)
