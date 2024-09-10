@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from requests.structures import CaseInsensitiveDict
 import pandas as pd
 import gdown
 from streamlit_geolocation import streamlit_geolocation
@@ -49,15 +50,10 @@ category = st.selectbox("Select restaurant category:",
 
 # Proceed if either geolocation was found or the user has inputted coordinates
 if coords:
-    try:
-        lat, lon = map(float, coords.split(","))
-    except ValueError:
-        st.error("Invalid coordinates format. Please enter valid latitude and longitude values separated by a comma.")
-        st.stop()
-
+    lat, lon = map(float, coords.split(","))
     st.write(f"Using Coordinates: (Latitude: {lat}, Longitude: {lon})")
     
-    # Function to fetch restaurant recommendations from Geoapify
+    # Function to fetch restaurant recommendations
     def get_restaurant_recommendations(lat, lon, radius, category):
         url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=10&apiKey={GEOAPIFY_API_KEY}"
         response = requests.get(url)
@@ -79,33 +75,9 @@ if coords:
             st.error("Failed to retrieve restaurant data.")
             return []
 
-    # Function to match restaurants with CSV data and add ratings
-    def match_and_enrich_recommendations(restaurants, reviews_df):
-        enriched_recommendations = []
-        for restaurant in restaurants:
-            # Match by restaurant name (case-insensitive)
-            matching_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
-            if not matching_reviews.empty:
-                # Calculate average rating if available
-                avg_rating = matching_reviews["Rating"].mean()
-                reviews_text = matching_reviews["Review"].tolist()[:5]  # Display a few reviews
-                restaurant['avg_rating'] = avg_rating
-                restaurant['reviews'] = reviews_text
-            else:
-                restaurant['avg_rating'] = None
-                restaurant['reviews'] = []
-
-            enriched_recommendations.append(restaurant)
-        
-        # Sort recommendations based on rating (descending)
-        enriched_recommendations.sort(key=lambda x: x['avg_rating'] if x['avg_rating'] is not None else 0, reverse=True)
-        
-        return enriched_recommendations
-
     # Display restaurant recommendations
     st.header("Nearby Restaurant Recommendations:")
     restaurants = get_restaurant_recommendations(lat, lon, radius, category)
-    enriched_recommendations = match_and_enrich_recommendations(restaurants, reviews_df)
 
     # Create a Folium map centered around the user's location
     m = folium.Map(location=[lat, lon], zoom_start=13)
@@ -118,10 +90,10 @@ if coords:
         ).add_to(m)
 
     # Add markers for each recommended restaurant
-    for restaurant in enriched_recommendations:
+    for restaurant in restaurants:
         folium.Marker(
             [restaurant['latitude'], restaurant['longitude']],
-            popup=f"{restaurant['name']}<br>{restaurant['address']}<br>Rating: {restaurant.get('avg_rating', 'N/A')}",
+            popup=f"{restaurant['name']}<br>{restaurant['address']}",
             tooltip=restaurant['name'],
             icon=folium.Icon(color='red', icon='cutlery')
         ).add_to(m)
@@ -130,24 +102,25 @@ if coords:
     folium_map = m._repr_html_()  # Convert to HTML representation
     html(folium_map, height=500)
 
-    if enriched_recommendations:
-        for restaurant in enriched_recommendations:
+    if restaurants:
+        for idx, restaurant in enumerate(restaurants):
             st.write(f"**{restaurant['name']}**")
             st.write(f"Address: {restaurant['address']}")
             st.write(f"Category: {restaurant['category']}")
-            st.write(f"Average Rating: {restaurant.get('avg_rating', 'N/A')}")
-            st.write("---")
+            show_reviews = st.button(f"Show Reviews for {restaurant['name']}", key=idx)
 
-            # Display reviews if available
-            if restaurant['reviews']:
-                st.write("**Reviews:**")
-                for review in restaurant['reviews']:
-                    st.write(f"- {review}")
-            else:
-                st.write("No reviews found.")
+            # Show reviews only when the button is clicked
+            if show_reviews:
+                restaurant_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
+                
+                if not restaurant_reviews.empty:
+                    st.write("**Reviews:**")
+                    for _, review_row in restaurant_reviews.iterrows():
+                        st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
+                else:
+                    st.write("No reviews found.")
             st.write("---")
     else:
         st.write("No restaurants found nearby.")
 else:
     st.write("Waiting for coordinates...")
-
