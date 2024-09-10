@@ -24,43 +24,32 @@ reviews_df = download_data_from_drive()
 # Geoapify API keys
 GEOAPIFY_API_KEY = "1b8f2a07690b4cde9b94e68770914821"
 
-# JavaScript code to get browser's geolocation
-def get_geolocation():
-    geolocation_code = """
-        <script>
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const latitude = position.coords.latitude;
-                const longitude = position.coords.longitude;
-                document.getElementById("geo-data").innerHTML = latitude + "," + longitude;
-            }
-        );
-        </script>
-        <p id="geo-data">Waiting for geolocation...</p>
-    """
-    return geolocation_code
-
-# Display JavaScript code in Streamlit
+# Display the title
 st.title("Restaurant Recommendation System")
+
+# Use streamlit_geolocation to capture the location
 location = streamlit_geolocation()
-st.write(location)
 
-# Show geolocation script
-st.markdown(get_geolocation(), unsafe_allow_html=True)
-
-# Input for the user to copy the geolocation data (or you can handle it via JavaScript events)
-coords = st.text_input("Enter your coordinates (latitude,longitude):")
+# Automatically set the latitude and longitude if geolocation is available
+if location:
+    lat, lon = location['lat'], location['lon']
+    coords = f"{lat},{lon}"
+    st.write(f"Detected Coordinates: Latitude {lat}, Longitude {lon}")
+else:
+    # Input for manual entry of geolocation data
+    coords = st.text_input("Enter your coordinates (latitude,longitude):")
 
 # Allow the user to change the search radius and category of the restaurant
 radius = st.slider("Select search radius (meters):", min_value=1000, max_value=10000, value=5000, step=500)
 category = st.selectbox("Select restaurant category:", 
                         ["catering.restaurant", "catering.fast_food", "catering.cafe", "catering.bar"])
 
+# If either geolocation was found or the user has inputted coordinates, proceed
 if coords:
     lat, lon = map(float, coords.split(","))
-    st.write(f"Detected Location: (Latitude: {lat}, Longitude: {lon})")
+    st.write(f"Using Coordinates: (Latitude: {lat}, Longitude: {lon})")
     
-    # Use Geoapify Places API to fetch restaurant recommendations
+    # Function to fetch restaurant recommendations
     def get_restaurant_recommendations(lat, lon, radius, category):
         url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=10&apiKey={GEOAPIFY_API_KEY}"
         response = requests.get(url)
@@ -80,7 +69,7 @@ if coords:
             st.error("Failed to retrieve restaurant data.")
             return []
 
-    # Get restaurant recommendations based on the exact location
+    # Display restaurant recommendations
     st.header("Nearby Restaurant Recommendations:")
     restaurants = get_restaurant_recommendations(lat, lon, radius, category)
 
