@@ -30,21 +30,23 @@ st.title("Restaurant Recommendation System")
 # Use streamlit_geolocation to capture the location
 location = streamlit_geolocation()
 
-# Check if location is available and contains the 'lat' and 'lon' keys
-if location and 'lat' in location and 'lon' in location:
-    lat, lon = location['lat'], location['lon']
+# Extract latitude and longitude from the location dictionary
+if location and "latitude" in location and "longitude" in location:
+    lat, lon = location["latitude"], location["longitude"]
     coords = f"{lat},{lon}"
     st.write(f"Detected Coordinates: Latitude {lat}, Longitude {lon}")
 else:
-    # Input for manual entry of geolocation data if location is not available
-    coords = st.text_input("Enter your coordinates (latitude,longitude):")
+    lat, lon = None, None
+
+# Input for manual entry of geolocation data if location is not available or to override
+coords = st.text_input("Enter your coordinates (latitude,longitude):", value=coords if lat and lon else "")
 
 # Allow the user to change the search radius and category of the restaurant
 radius = st.slider("Select search radius (meters):", min_value=1000, max_value=10000, value=5000, step=500)
 category = st.selectbox("Select restaurant category:", 
                         ["catering.restaurant", "catering.fast_food", "catering.cafe", "catering.bar"])
 
-# If either geolocation was found or the user has inputted coordinates, proceed
+# Proceed if either geolocation was found or the user has inputted coordinates
 if coords:
     lat, lon = map(float, coords.split(","))
     st.write(f"Using Coordinates: (Latitude: {lat}, Longitude: {lon})")
