@@ -64,7 +64,9 @@ if coords:
                 {
                     "name": place["properties"].get("name", "Unknown name"),
                     "address": place["properties"].get("formatted", "No address available"),
-                    "category": place["properties"]["categories"][0]
+                    "category": place["properties"]["categories"][0],
+                    "latitude": place["geometry"]["coordinates"][1],
+                    "longitude": place["geometry"]["coordinates"][0]
                 }
                 for place in restaurants
             ]
@@ -87,18 +89,18 @@ if coords:
             icon=folium.Icon(color='blue', icon='user')
         ).add_to(m)
 
-        # Add markers for each recommended restaurant
+    # Add markers for each recommended restaurant
     for restaurant in restaurants:
-            folium.Marker(
-                [restaurant['latitude'], restaurant['longitude']],
-                popup=f"{restaurant['name']}<br>{restaurant['address']}",
-                tooltip=restaurant['name'],
-                icon=folium.Icon(color='red', icon='cutlery')
-            ).add_to(m)
+        folium.Marker(
+            [restaurant['latitude'], restaurant['longitude']],
+            popup=f"{restaurant['name']}<br>{restaurant['address']}",
+            tooltip=restaurant['name'],
+            icon=folium.Icon(color='red', icon='cutlery')
+        ).add_to(m)
 
-        # Render the map in Streamlit
-        folium_map = m.repr_html()  # Convert to HTML representation
-        html(folium_map, height=500)
+    # Render the map in Streamlit
+    folium_map = m._repr_html_()  # Convert to HTML representation
+    html(folium_map, height=500)
 
     if restaurants:
         for restaurant in restaurants:
