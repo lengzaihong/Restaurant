@@ -75,6 +75,29 @@ if coords:
     st.header("Nearby Restaurant Recommendations:")
     restaurants = get_restaurant_recommendations(lat, lon, radius, category)
 
+    # Create a Folium map centered around the user's location
+    m = folium.Map(location=[lat, lon], zoom_start=13)
+
+    # Add a marker for the user's location
+    folium.Marker(
+            [lat, lon], 
+            popup="Your Location",
+            icon=folium.Icon(color='blue', icon='user')
+        ).add_to(m)
+
+        # Add markers for each recommended restaurant
+    for restaurant in restaurants:
+            folium.Marker(
+                [restaurant['latitude'], restaurant['longitude']],
+                popup=f"{restaurant['name']}<br>{restaurant['address']}",
+                tooltip=restaurant['name'],
+                icon=folium.Icon(color='red', icon='cutlery')
+            ).add_to(m)
+
+        # Render the map in Streamlit
+        folium_map = m.repr_html()  # Convert to HTML representation
+        html(folium_map, height=500)
+
     if restaurants:
         for restaurant in restaurants:
             st.write(f"**{restaurant['name']}**")
