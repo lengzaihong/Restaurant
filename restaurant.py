@@ -4,6 +4,8 @@ from requests.structures import CaseInsensitiveDict
 import pandas as pd
 import gdown
 from streamlit_geolocation import streamlit_geolocation
+import folium
+from streamlit.components.v1 import html
 
 # Function to download the CSV from Google Drive
 @st.cache
