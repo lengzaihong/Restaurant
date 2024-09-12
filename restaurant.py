@@ -103,22 +103,21 @@ if coords:
     html(folium_map, height=500)
 
     if restaurants:
-        for idx, restaurant in enumerate(restaurants):
+        for restaurant in restaurants:
             st.write(f"*{restaurant['name']}*")
             st.write(f"Address: {restaurant['address']}")
             st.write(f"Category: {restaurant['category']}")
-            show_reviews = st.button(f"Show Reviews for {restaurant['name']}", key=idx)
+            st.write("---")
 
-            # Show reviews only when the button is clicked
-            if show_reviews:
-                restaurant_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
-                
-                if not restaurant_reviews.empty:
-                    st.write("*Reviews:*")
-                    for _, review_row in restaurant_reviews.iterrows():
-                        st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
-                else:
-                    st.write("No reviews found.")
+            # Extract reviews for the recommended restaurant
+            restaurant_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
+            
+            if not restaurant_reviews.empty:
+                st.write("*Reviews:*")
+                for _, review_row in restaurant_reviews.iterrows():
+                    st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
+            else:
+                st.write("No reviews found.")
             st.write("---")
     else:
         st.write("No restaurants found nearby.")
