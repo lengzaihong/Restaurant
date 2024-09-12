@@ -6,6 +6,11 @@ import gdown
 from streamlit_geolocation import streamlit_geolocation
 import folium
 from streamlit.components.v1 import html
+from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.feature_extraction.text import CountVectorizer
+import nltk
+
+nltk.download('vader_lexicon')
 
 # Function to download the CSV from Google Drive
 @st.cache
@@ -27,7 +32,7 @@ reviews_df = download_data_from_drive()
 GEOAPIFY_API_KEY = "1b8f2a07690b4cde9b94e68770914821"
 
 # Display the title
-st.title("Restaurant Recommendation System")
+st.title("Restaurant Recommendation System with Sentiment Analysis")
 
 # Use streamlit_geolocation to capture the location
 location = streamlit_geolocation()
@@ -102,6 +107,19 @@ if coords:
     folium_map = m._repr_html_()  # Convert to HTML representation
     html(folium_map, height=500)
 
+    # Function to perform sentiment analysis on reviews
+    def analyze_sentiment(reviews):
+        sia = SentimentIntensityAnalyzer()
+        reviews['Sentiment'] = reviews['Review'].apply(lambda x: 'Positive' if sia.polarity_scores(x)['compound'] > 0 else 'Negative')
+        return reviews
+
+    # Function to extract keywords using CountVectorizer
+    def extract_keywords(reviews):
+        vectorizer = CountVectorizer(max_df=0.9, stop_words='english', max_features=10)
+        X = vectorizer.fit_transform(reviews['Review'])
+        keywords = vectorizer.get_feature_names_out()
+        return keywords
+
     if restaurants:
         for idx, restaurant in enumerate(restaurants):
             st.write(f"**{restaurant['name']}**")
@@ -114,9 +132,16 @@ if coords:
                 restaurant_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
                 
                 if not restaurant_reviews.empty:
+                    # Perform sentiment analysis
+                    analyzed_reviews = analyze_sentiment(restaurant_reviews)
+                    
                     st.write("**Reviews:**")
-                    for _, review_row in restaurant_reviews.iterrows():
-                        st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
+                    for _, review_row in analyzed_reviews.iterrows():
+                        st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']}, Sentiment: {review_row['Sentiment']})")
+                    
+                    # Extract keywords
+                    keywords = extract_keywords(restaurant_reviews)
+                    st.write(f"**Keywords:** {', '.join(keywords)}")
                 else:
                     st.write("No reviews found.")
             st.write("---")
