@@ -55,7 +55,7 @@ if coords:
     
     # Function to fetch restaurant recommendations
     def get_restaurant_recommendations(lat, lon, radius, category):
-        url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=30&apiKey={GEOAPIFY_API_KEY}"
+        url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=50&apiKey={GEOAPIFY_API_KEY}"
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
