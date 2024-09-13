@@ -6,3 +6,4 @@ streamlit-geolocation
 folium
 nltk
 scikit-learn
+transformers 
