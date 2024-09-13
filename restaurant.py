@@ -1,126 +1,165 @@
 import streamlit as st
-import requests
-from requests.structures import CaseInsensitiveDict
 import pandas as pd
 import gdown
-from streamlit_geolocation import streamlit_geolocation
-import folium
-from streamlit.components.v1 import html
+import ast
+from transformers import pipeline, AutoTokenizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-# Function to download the CSV from Google Drive
-@st.cache
+# Download the data from Google Drive
+@st.cache_data
 def download_data_from_drive():
-    # Google Drive link for the dataset (convert to direct download link)
-    url = 'https://drive.google.com/uc?id=1Tc3Hequ5jVjamAfuPhpBv8JvsOp7LSJY'
-    output = 'restaurant_reviews.csv'
-    
-    # Download the file without printing progress (quiet=True)
+    url = 'https://drive.google.com/uc?id=1Woi9GqjiQE7KWIem_7ICrjXfOpuTyUL_'
+    output = 'songTest1.csv'
     gdown.download(url, output, quiet=True)
-    
-    # Load the dataset
     return pd.read_csv(output)
 
-# Load the dataset of restaurant reviews
-reviews_df = download_data_from_drive()
+# Load emotion detection model and tokenizer
+def load_emotion_model():
+    model_name = "j-hartmann/emotion-english-distilroberta-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = pipeline("text-classification", model=model_name, top_k=None)
+    return model, tokenizer
 
-# Geoapify API keys
-GEOAPIFY_API_KEY = "1b8f2a07690b4cde9b94e68770914821"
-
-# Display the title
-st.title("Restaurant Recommendation System")
-
-# Use streamlit_geolocation to capture the location
-location = streamlit_geolocation()
-
-# Extract latitude and longitude from the location dictionary
-if location and "latitude" in location and "longitude" in location:
-    lat, lon = location["latitude"], location["longitude"]
-    coords = f"{lat},{lon}"
-    st.write(f"Detected Coordinates: Latitude {lat}, Longitude {lon}")
-else:
-    lat, lon = None, None
-
-# Input for manual entry of geolocation data if location is not available or to override
-coords = st.text_input("Enter your coordinates (latitude,longitude):", value=coords if lat and lon else "")
-
-# Allow the user to change the search radius and category of the restaurant
-radius = st.slider("Select search radius (meters):", min_value=1000, max_value=10000, value=5000, step=500)
-category = st.selectbox("Select restaurant category:", 
-                        ["catering.restaurant", "catering.fast_food", "catering.cafe", "catering.bar"])
-
-# Proceed if either geolocation was found or the user has inputted coordinates
-if coords:
-    lat, lon = map(float, coords.split(","))
-    st.write(f"Using Coordinates: (Latitude: {lat}, Longitude: {lon})")
+# Detect emotions in the song lyrics
+def detect_emotions(lyrics, emotion_model, tokenizer):
+    max_length = 512  # Max token length for the model
+    inputs = tokenizer(lyrics, return_tensors="pt", truncation=True, max_length=max_length)
     
-    # Function to fetch restaurant recommendations
-    def get_restaurant_recommendations(lat, lon, radius, category):
-        url = f"https://api.geoapify.com/v2/places?categories={category}&filter=circle:{lon},{lat},{radius}&limit=50&apiKey={GEOAPIFY_API_KEY}"
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            restaurants = data["features"]
-            restaurant_list = [
-                {
-                    "name": place["properties"].get("name", "Unknown name"),
-                    "address": place["properties"].get("formatted", "No address available"),
-                    "category": place["properties"]["categories"][0],
-                    "latitude": place["geometry"]["coordinates"][1],
-                    "longitude": place["geometry"]["coordinates"][0]
-                }
-                for place in restaurants
-            ]
-            return restaurant_list
+    try:
+        emotions = emotion_model(lyrics[:tokenizer.model_max_length])
+    except Exception as e:
+        st.write(f"Error in emotion detection: {e}")
+        emotions = []
+    return emotions
+
+# Compute similarity between the input song lyrics and all other songs in the dataset
+@st.cache_data
+def compute_similarity(df, song_lyrics):
+    df['Lyrics'] = df['Lyrics'].fillna('').astype(str)
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(df['Lyrics'])
+    song_tfidf = vectorizer.transform([song_lyrics])
+    similarity_scores = cosine_similarity(song_tfidf, tfidf_matrix)
+    return similarity_scores.flatten()
+
+def extract_youtube_url(media_str):
+    """Extract the YouTube URL from the Media field."""
+    try:
+        media_list = ast.literal_eval(media_str)  # Safely evaluate the string to a list
+        for media in media_list:
+            if media.get('provider') == 'youtube':
+                return media.get('url')
+    except (ValueError, SyntaxError):
+        return None
+
+# Recommend similar songs based on lyrics and detected emotions
+def recommend_songs(df, selected_song, top_n=5):
+    song_data = df[df['Song Title'] == selected_song]
+    if song_data.empty:
+        st.write("Song not found.")
+        return []
+    
+    song_lyrics = song_data['Lyrics'].values[0]
+
+    # Load emotion detection model and tokenizer
+    emotion_model, tokenizer = load_emotion_model()
+
+    # Detect emotions in the selected song
+    emotions = detect_emotions(song_lyrics, emotion_model, tokenizer)
+    st.write(f"### Detected Emotions in {selected_song}:")
+    st.write(emotions)
+
+    # Compute lyrics similarity
+    similarity_scores = compute_similarity(df, song_lyrics)
+
+    # Recommend top N similar songs
+    df['similarity'] = similarity_scores
+    recommended_songs = df.sort_values(by='similarity', ascending=False).head(top_n)
+    
+    return recommended_songs[['Song Title', 'Artist', 'Album', 'Release Date', 'similarity', 'Song URL', 'Media']]
+
+# Main function for the Streamlit app
+def main():
+    st.title("Song Recommender System Based on Lyrics Emotion and Similarity")
+    df = download_data_from_drive()
+
+    # Convert the 'Release Date' column to datetime if possible
+    df['Release Date'] = pd.to_datetime(df['Release Date'], errors='coerce')
+    
+    # Search bar for song name or artist
+    search_term = st.text_input("Enter a Song Name or Artist").strip()
+
+    if search_term:
+        # Filter by song title or artist name
+        filtered_songs = df[
+            (df['Song Title'].str.contains(search_term, case=False, na=False)) |
+            (df['Artist'].str.contains(search_term, case=False, na=False))
+        ]
+
+        filtered_songs = filtered_songs.sort_values(by='Release Date', ascending=False).reset_index(drop=True)
+
+        if filtered_songs.empty:
+            st.write("No songs found matching the search term.")
         else:
-            st.error("Failed to retrieve restaurant data.")
-            return []
+            st.write(f"### Search Results for: {search_term}")
+            for idx, row in filtered_songs.iterrows():
+                with st.container():
+                    st.markdown(f"<h2 style='font-weight: bold;'> {idx + 1}. {row['Song Title']}</h2>", unsafe_allow_html=True)
+                    st.markdown(f"**Artist:** {row['Artist']}")
+                    st.markdown(f"**Album:** {row['Album']}")
+                    
+                    # Check if 'Release Date' is a datetime object before formatting
+                    if pd.notna(row['Release Date']):
+                        st.markdown(f"**Release Date:** {row['Release Date'].strftime('%Y-%m-%d')}")
+                    else:
+                        st.markdown(f"**Release Date:** Unknown")
+                    
+                    # Display link to Genius.com page if URL is available
+                    song_url = row.get('Song URL', '')
+                    if pd.notna(song_url) and song_url:
+                        st.markdown(f"[View Lyrics on Genius]({song_url})")
 
-    # Display restaurant recommendations
-    st.header("Nearby Restaurant Recommendations:")
-    restaurants = get_restaurant_recommendations(lat, lon, radius, category)
+                    # Extract and display YouTube video if URL is available
+                    youtube_url = extract_youtube_url(row.get('Media', ''))
+                    if youtube_url:
+                        video_id = youtube_url.split('watch?v=')[-1]
+                        st.markdown(f"<iframe width='400' height='315' src='https://www.youtube.com/embed/{video_id}' frameborder='0' allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share' referrerpolicy='strict-origin-when-cross-origin' allowfullscreen></iframe>", unsafe_allow_html=True)
 
-    # Create a Folium map centered around the user's location
-    m = folium.Map(location=[lat, lon], zoom_start=13)
+                    with st.expander("Show/Hide Lyrics"):
+                        formatted_lyrics = row['Lyrics'].strip().replace('\n', '\n\n')
+                        st.markdown(f"<pre style='white-space: pre-wrap; font-family: monospace;'>{formatted_lyrics}</pre>", unsafe_allow_html=True)
+                    st.markdown("---")
 
-    # Add a marker for the user's location
-    folium.Marker(
-            [lat, lon], 
-            popup="Your Location",
-            icon=folium.Icon(color='blue', icon='user')
-        ).add_to(m)
+            song_list = filtered_songs['Song Title'].unique()
+            selected_song = st.selectbox("Select a Song for Recommendations", song_list)
 
-    # Add markers for each recommended restaurant
-    for restaurant in restaurants:
-        folium.Marker(
-            [restaurant['latitude'], restaurant['longitude']],
-            popup=f"{restaurant['name']}<br>{restaurant['address']}",
-            tooltip=restaurant['name'],
-            icon=folium.Icon(color='red', icon='cutlery')
-        ).add_to(m)
+            if st.button("Recommend Similar Songs"):
+                recommendations = recommend_songs(df, selected_song)
+                st.write(f"### Recommended Songs Similar to {selected_song}")
+                for idx, row in recommendations.iterrows():
+                    st.markdown(f"**No. {idx + 1}: {row['Song Title']}**")
+                    st.markdown(f"**Artist:** {row['Artist']}")
+                    st.markdown(f"**Album:** {row['Album']}")
+                    
+                    # Check if 'Release Date' is a datetime object before formatting
+                    if pd.notna(row['Release Date']):
+                        st.markdown(f"**Release Date:** {row['Release Date'].strftime('%Y-%m-%d')}")
+                    else:
+                        st.markdown(f"**Release Date:** Unknown")
+                    
+                    st.markdown(f"**Similarity Score:** {row['similarity']:.2f}")
+                    
+                    # Extract and display YouTube video if URL is available
+                    youtube_url = extract_youtube_url(row.get('Media', ''))
+                    if youtube_url:
+                        video_id = youtube_url.split('watch?v=')[-1]
+                        st.markdown(f"<iframe width='400' height='315' src='https://www.youtube.com/embed/{video_id}' frameborder='0' allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share' referrerpolicy='strict-origin-when-cross-origin' allowfullscreen></iframe>", unsafe_allow_html=True)
 
-    # Render the map in Streamlit
-    folium_map = m._repr_html_()  # Convert to HTML representation
-    html(folium_map, height=500)
+                    st.markdown("---")
 
-    if restaurants:
-        for idx, restaurant in enumerate(restaurants):
-            st.write(f"**{restaurant['name']}**")
-            st.write(f"Address: {restaurant['address']}")
-            st.write(f"Category: {restaurant['category']}")
-            show_reviews = st.button(f"Show Reviews for {restaurant['name']}", key=idx)
-
-            # Show reviews only when the button is clicked
-            if show_reviews:
-                restaurant_reviews = reviews_df[reviews_df["Restaurant"].str.contains(restaurant['name'], case=False, na=False)]
-                
-                if not restaurant_reviews.empty:
-                    st.write("**Reviews:**")
-                    for _, review_row in restaurant_reviews.iterrows():
-                        st.write(f"- {review_row['Review']} (Rating: {review_row['Rating']})")
-                else:
-                    st.write("No reviews found.")
-            st.write("---")
     else:
-        st.write("No restaurants found nearby.")
-else:
-    st.write("Waiting for coordinates...")
+        st.write("Please enter a song name or artist to search.")
+
+if __name__ == '__main__':
+    main()
